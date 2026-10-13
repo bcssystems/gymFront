@@ -1,0 +1,48 @@
+<div class="page-content">
+  <div class="page-header">
+    <div>
+      <h4><i class="fas fa-id-card me-2" style="color:var(--primary)"></i>Membres&iacute;as</h4>
+      <small class="text-muted">Administra los planes y sus precios por duraci&oacute;n</small>
+    </div>
+    <button class="btn btn-primary" id="btnNuevaMembresia"><i class="fas fa-plus me-1"></i>Nueva membres&iacute;a</button>
+  </div>
+  <div class="panel-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-custom mb-0">
+        <thead><tr><th>Nombre</th><th>Precio por d&iacute;a</th><th>Precio por semana</th><th>Precio por mes</th><th>Precio por a&ntilde;o</th><th>Estado</th><th></th></tr></thead>
+        <tbody id="tableMembresiasBody"><tr><td colspan="7"><div class="empty-state"><i class="fas fa-id-card"></i><p>Cargando...</p></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="membresiaModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0"><h5 class="modal-title fw-bold" id="membresiaModalTitle">Nueva membres&iacute;a</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <form id="formMembresia">
+          <div class="mb-3"><label class="form-label">Nombre <span class="text-danger">*</span></label><input class="form-control" id="membresiaNombre" required maxlength="150"></div>
+          <div class="mb-3"><label class="form-label">Descripci&oacute;n</label><textarea class="form-control" id="membresiaDescripcion" rows="2" maxlength="500"></textarea></div>
+          <div class="row g-2">
+            <div class="col-6"><label class="form-label">Precio por d&iacute;a</label><input type="number" class="form-control" id="membresiaPrecioDia" min="0" step="0.01" required></div>
+            <div class="col-6"><label class="form-label">Precio por semana</label><input type="number" class="form-control" id="membresiaPrecioSemana" min="0" step="0.01" required></div>
+            <div class="col-6"><label class="form-label">Precio por mes</label><input type="number" class="form-control" id="membresiaPrecioMes" min="0" step="0.01" required></div>
+            <div class="col-6"><label class="form-label">Precio por a&ntilde;o</label><input type="number" class="form-control" id="membresiaPrecioAnio" min="0" step="0.01" required></div>
+          </div>
+          <div class="form-check mt-3"><input type="checkbox" class="form-check-input" id="membresiaActiva"><label class="form-check-label" for="membresiaActiva">Membres&iacute;a activa</label></div>
+        </form>
+      </div>
+      <div class="modal-footer border-0"><button class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" id="btnGuardarMembresia">Guardar</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="membresiaDetalleModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0"><h5 class="modal-title fw-bold">Detalle de membres&iacute;a</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="membresiaDetalleBody"></div>
+    </div>
+  </div>
+</div>

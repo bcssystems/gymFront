@@ -486,7 +486,7 @@ export function printRemisionVenta(venta, opts) {
   const formato = options.formato || 'carta';
   const logo = configs.logoTicket || configs.logoUrl || configs.logoEmpresa || '';
   const logoHtml = logo ? '<img src="' + Utils.esc(logo) + '" class="logo" alt="" onerror="this.remove()">' : '';
-  const empresa = configs.descripcionEmpresa || 'Racoon';
+  const empresa = configs.descripcionEmpresa || 'Gym';
   const footer = configs.pieTicket || configs.footerTicket || '';
 
   const now = new Date();
@@ -785,7 +785,7 @@ export function printComprobanteAbono(abonos, opts) {
     @media print { .print-copy { break-after: page; } .print-copy:last-child { break-after:auto; } }
   </style></head><body>
     <div class="print-copy">
-      <div class="header"><div class="sub">Racoon</div><div class="folio">COMPROBANTE DE ABONO</div></div>
+      <div class="header"><div class="sub">Gym</div><div class="folio">COMPROBANTE DE ABONO</div></div>
       <table class="info-grid">
         <tr><td class="label">Cliente</td><td>${Utils.esc(clienteNombre)}</td></tr>
         <tr><td class="label">Fecha</td><td>${fechaStr} ${horaStr}</td></tr>
@@ -838,7 +838,7 @@ export function printComprobanteMovimiento(movimiento, opts) {
     '<title>Comprobante de movimiento #' + Utils.esc(movimiento.idMovimiento || '') + '</title>' +
     '<style>' + css + '</style></head><body>' +
     '<div class="print-copy">' +
-    '<div class="header"><div class="sub">Racoon</div><div class="folio">COMPROBANTE DE MOVIMIENTO</div></div>' +
+    '<div class="header"><div class="sub">Gym</div><div class="folio">COMPROBANTE DE MOVIMIENTO</div></div>' +
     '<table class="info-grid">' +
     '<tr><td class="label">Folio</td><td>' + Utils.esc(movimiento.referencia || ('MOV-' + movimiento.idMovimiento)) + '</td></tr>' +
     '<tr><td class="label">Tipo</td><td>' + Utils.esc(tipo) + '</td></tr>' +
@@ -853,7 +853,7 @@ export function printComprobanteMovimiento(movimiento, opts) {
     '<div class="divider"></div><table class="totals">' +
     '<tr><td>Stock anterior &rarr; nuevo</td><td class="right">' + stock + '</td></tr>' +
     '<tr><td>Observación</td><td class="right">' + Utils.esc(movimiento.observacion || '—') + '</td></tr>' +
-    '</table><div class="footer">Documento generado por Racoon.</div>' +
+    '</table><div class="footer">Documento generado por Gym.</div>' +
     '</div></body></html>';
   const win = abrirVentana('Movimiento #' + movimiento.idMovimiento, 600, 800);
   if (!win) return;

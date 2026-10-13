@@ -1,11 +1,6 @@
 const CAMPOS = {
   fondoCajas: 'cfg-fondoCajas',
-  tasaInteresMoraPagare: 'cfg-tasaInteresMoraPagare',
-  diasListaNegra: 'cfg-diasListaNegra',
-  titularPagare: 'cfg-titularPagare',
-  descripcionEmpresa: 'cfg-descripcionEmpresa',
-  direccionEmpresa: 'cfg-direccionEmpresa',
-  pieTicket: 'cfg-footerTicket'
+  diasDesactivacionMembresia: 'cfg-diasDesactivacionMembresia'
 };
 
 let configs = [];

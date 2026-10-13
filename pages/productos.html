@@ -85,7 +85,7 @@
         <span class="th-nombre">Nombre</span>
         <span class="th-unidad">Unidad</span>
         <span class="th-stock">Stock</span>
-        <span class="th-precio">Precio p&uacute;blico</span>
+        <span class="th-precio">Precio</span>
         <span class="th-estado">Estado</span>
         <span class="th-acciones"></span>
       </div>
@@ -110,8 +110,8 @@
           <input type="hidden" id="productoId">
           <div class="row g-3">
             <div class="col-md-4">
-              <label class="form-label">SKU (generado autom&aacute;ticamente)</label>
-              <input type="text" class="form-control" id="productoSku" disabled>
+              <label class="form-label">SKU <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="productoSku" required maxlength="50">
             </div>
             <div class="col-md-8">
               <label class="form-label">Nombre <span class="text-danger">*</span></label>
@@ -122,20 +122,8 @@
               <textarea class="form-control" id="productoDescripcion" rows="2" maxlength="2000"></textarea>
             </div>
             <div class="col-md-3">
-              <label class="form-label">Precio p&uacute;blico <span class="text-danger">*</span></label>
+              <label class="form-label">Precio <span class="text-danger">*</span></label>
               <input type="number" class="form-control" id="productoPrecioBase" step="0.01" min="0" required>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Precio 2</label>
-              <input type="number" class="form-control" id="productoPrecio2" step="0.01" min="0">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Precio 3</label>
-              <input type="number" class="form-control" id="productoPrecio3" step="0.01" min="0">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Precio 4</label>
-              <input type="number" class="form-control" id="productoPrecio4" step="0.01" min="0">
             </div>
             <div class="col-md-3">
               <label class="form-label">Costo</label>

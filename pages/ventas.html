@@ -1,4 +1,4 @@
-<div class="page-content" id="pos-caja-selector">
+<div class="page-content d-none" id="pos-caja-selector">
   <div class="page-header">
     <div>
       <h4><i class="fas fa-cash-register me-2" style="color:var(--primary)"></i>Punto de Venta</h4>
@@ -24,6 +24,20 @@
   </div>
 </div>
 
+<div class="modal fade" id="posMembresiaModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0"><h5 class="modal-title fw-bold" id="posMembresiaTitulo">Seleccionar membres&iacute;a</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="small text-muted mb-3" id="posMembresiaCliente"></div>
+        <label class="form-label">Membres&iacute;a</label><select class="form-select mb-3" id="posMembresiaSelect"></select>
+        <label class="form-label">Duraci&oacute;n</label><select class="form-select" id="posMembresiaDuracion"><option value="DIA">D&iacute;a</option><option value="SEMANA">Semana</option><option value="MES" selected>Mes</option><option value="ANIO">A&ntilde;o</option></select>
+      </div>
+      <div class="modal-footer border-0"><button class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-success" id="btnConfirmarRenovacion">Agregar al carrito</button></div>
+    </div>
+  </div>
+</div>
+
 <div id="pos-interface" class="d-none">
   <div class="pos-layout">
     <div class="pos-left">
@@ -39,6 +53,9 @@
               </div>
               <button class="btn btn-outline-primary btn-sm ripple" id="btnNuevoClientePOS" title="Nuevo Cliente">
                 <i class="fas fa-plus"></i>
+              </button>
+              <button class="btn btn-outline-success btn-sm ripple" id="btnRenovarMembresiaPOS" title="Renovar o añadir membresía" disabled>
+                <i class="fas fa-id-card"></i>
               </button>
             </div>
           </div>
@@ -57,15 +74,6 @@
           <button class="btn btn-outline-secondary btn-sm ripple" id="btnVerInventario" title="Ver inventario">
             <i class="fas fa-boxes"></i>
           </button>
-        </div>
-        <div class="d-flex align-items-center gap-2 mt-2">
-          <label class="form-label mb-0 small text-nowrap" for="precioSelector">Lista de precio:</label>
-          <select class="form-select form-select-sm" id="precioSelector" style="max-width:180px">
-            <option value="1">Precio p&uacute;blico</option>
-            <option value="2">Precio 2</option>
-            <option value="3">Precio 3</option>
-            <option value="4">Precio 4</option>
-          </select>
         </div>
         <div id="posProductResults" class="pos-product-results mt-1 d-none">
           <div class="list-group list-group-flush" id="posProductList"></div>
@@ -144,7 +152,7 @@
           <button class="btn btn-outline-danger btn-sm ripple" id="btnCancelarVentaPOS">
             <i class="fas fa-ban me-1"></i> Cancelar Venta
           </button>
-          <button class="btn btn-outline-info btn-sm ripple" id="btnPromocionesPOS">
+          <button class="btn btn-outline-info btn-sm ripple d-none" id="btnPromocionesPOS">
             <i class="fas fa-percent me-1"></i> Promociones
           </button>
           <button class="btn btn-outline-secondary btn-sm ripple" id="btnVentaRapidaPOS">
@@ -215,80 +223,6 @@
             <div class="col-4">
               <label class="form-label">Ap. Materno</label>
               <input type="text" class="form-control form-control-sm" id="posClienteAmaterno">
-            </div>
-            <div class="col-4">
-              <label class="form-label">Tel&eacute;fono <span class="text-danger">*</span></label>
-              <input type="text" class="form-control form-control-sm" id="posClienteTelefono" required>
-            </div>
-            <div class="col-4">
-              <label class="form-label">Pa&iacute;s</label>
-              <select class="form-select form-select-sm" id="posClientePais"></select>
-            </div>
-            <div class="col-4">
-              <label class="form-label">WhatsApp</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteWhatsapp">
-            </div>
-            <div class="col-6">
-              <label class="form-label">Empresa</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteEmpresa">
-            </div>
-            <div class="col-6">
-              <label class="form-label">R&eacute;gimen Fiscal</label>
-              <select class="form-select form-select-sm" id="posClienteRegimen"></select>
-            </div>
-            <div class="col-6">
-              <label class="form-label">RFC</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteRfc" maxlength="13">
-            </div>
-            <div class="col-6">
-              <label class="form-label">Contacto</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteRepresentanteLegal" maxlength="200">
-            </div>
-            <div class="col-12">
-              <label class="form-label">Direcci&oacute;n de entrega</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteDireccionEntrega" maxlength="300">
-            </div>
-            <div class="col-12"><hr class="my-1"></div>
-            <div class="col-2">
-              <label class="form-label">C.P.</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteCp" maxlength="5" placeholder="12345">
-            </div>
-            <div class="col-4">
-              <label class="form-label">Estado</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteEstado" readonly>
-            </div>
-            <div class="col-3">
-              <label class="form-label">Municipio</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteMunicipio">
-            </div>
-            <div class="col-3">
-              <label class="form-label">Colonia</label>
-              <select class="form-select form-select-sm" id="posClienteColonia">
-                <option value="">Seleccionar...</option>
-              </select>
-            </div>
-            <div class="col-4">
-              <label class="form-label">Calle</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteCalle" maxlength="200">
-            </div>
-            <div class="col-2">
-              <label class="form-label">N&uacute;m. Exterior</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteNumExt" maxlength="20">
-            </div>
-            <div class="col-2">
-              <label class="form-label">N&uacute;m. Interior</label>
-              <input type="text" class="form-control form-control-sm" id="posClienteNumInt" maxlength="20">
-            </div>
-            <div class="col-12"><hr class="my-1"></div>
-            <div class="col-3">
-              <div class="form-check mt-2">
-                <input type="checkbox" class="form-check-input" id="posClienteTieneCredito">
-                <label class="form-check-label" for="posClienteTieneCredito">&iquest;Tiene cr&eacute;dito?</label>
-              </div>
-            </div>
-            <div class="col-3" id="posClienteLimiteCreditoGroup" style="display:none">
-              <label class="form-label">L&iacute;mite de Cr&eacute;dito</label>
-              <input type="number" class="form-control form-control-sm" id="posClienteLimiteCredito" step="0.01" min="0">
             </div>
           </div>
         </form>
@@ -410,7 +344,7 @@
     </div>
   </div>
 
-  <div class="modal fade" id="posCreditoModal" tabindex="-1">
+  <div class="modal fade d-none" id="posCreditoModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-sm">
       <div class="modal-content border-0 shadow">
         <div class="modal-header border-0">
@@ -471,7 +405,7 @@
     </div>
   </div>
 
-  <div class="modal fade" id="posPromocionModal" tabindex="-1">
+  <div class="modal fade d-none" id="posPromocionModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content border-0 shadow">
       <div class="modal-header border-0">
@@ -584,7 +518,7 @@
   </div>
 </div>
 
-  <div class="modal fade" id="abonoPOSModal" tabindex="-1">
+  <div class="modal fade d-none" id="abonoPOSModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content border-0 shadow">
       <div class="modal-header border-0">

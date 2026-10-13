@@ -50,19 +50,38 @@ const REGIMENES_FISCALES = [
 export function init() {
   bindEvents();
   cargarCobradoresPOS();
-  cargarConfiguraciones();
-  const lastCajaId = localStorage.getItem('lastCajaId');
-  const lastSucursalId = localStorage.getItem('lastSucursalId');
-  if (lastCajaId && lastSucursalId) {
-    autoEntrarCaja(lastCajaId, lastSucursalId);
-  } else {
-    mostrarSelectorCaja();
+  cargarConfiguraciones().finally(() => entrarCajaUnica());
+}
+
+async function entrarCajaUnica() {
+  try {
+    const cajas = await API.get('/cajas');
+    if (!cajas || cajas.length !== 1) {
+      Utils.showToast('Debe existir exactamente una caja activa para operar el PDV', 'error');
+      return;
+    }
+    const caja = cajas[0];
+    state.caja = await API.get('/cajas/' + caja.idCaja);
+    if (state.caja.estado === 'CERRADA') {
+      const saldo = await Utils.promptInput('Fondo general', '¿Con cuánto efectivo comienzas?', obtenerFondoGeneral());
+      if (saldo === null) return;
+      await API.post('/cajas/' + state.caja.idCaja + '/apertura', { saldoInicial: parseFloat(saldo) || 0 });
+      state.caja = await API.get('/cajas/' + state.caja.idCaja);
+      Utils.showToast('Caja abierta exitosamente', 'success');
+    }
+    localStorage.setItem('lastCajaId', String(state.caja.idCaja));
+    localStorage.setItem('lastSucursalId', String(state.caja.idSucursal));
+    document.getElementById('pos-caja-selector')?.classList.add('d-none');
+    iniciarPOS();
+    actualizarCajaInfo();
+  } catch (err) {
+    Utils.showToast(err.message || 'No se pudo abrir la caja', 'error');
   }
 }
 
 async function cargarCobradoresPOS() {
   try {
-    state.cobradores = await API.get('/creditos/cobradores') || [];
+    state.cobradores = [];
     const select = document.getElementById('posCreditoCobrador');
     if (select) {
       select.innerHTML = '<option value="">Sin asignar</option>' + state.cobradores.map(p =>
@@ -106,6 +125,7 @@ function bindEvents() {
   });
   document.getElementById('btnEsperaPOS')?.addEventListener('click', ponerEnEspera);
   document.getElementById('btnNuevoClientePOS')?.addEventListener('click', () => abrirClienteModal());
+  document.getElementById('btnRenovarMembresiaPOS')?.addEventListener('click', abrirMembresiaDesdePOS);
   document.getElementById('btnGuardarPosCliente')?.addEventListener('click', guardarClienteDesdePOS);
   document.getElementById('posClienteCp')?.addEventListener('input', Utils.debounce(function() {
     const cp = this.value.trim();
@@ -170,18 +190,12 @@ function bindEvents() {
   }
 
   document.getElementById('posFilterCategoria')?.addEventListener('change', () => buscarProductos());
-  document.getElementById('precioSelector')?.addEventListener('change', () => {
-    actualizarPreciosSeleccionados();
-    buscarProductos(true);
-  });
-
   document.getElementById('posCliente')?.addEventListener('change', onPosClienteChange);
+  document.getElementById('btnConfirmarRenovacion')?.addEventListener('click', confirmarRenovacion);
 }
 
 function getPrecioProducto(producto) {
-  const index = parseInt(document.getElementById('precioSelector')?.value) || 1;
-  const precio = index === 1 ? producto?.precioBase : producto?.['precio' + index];
-  return precio != null ? precio : 0;
+  return producto?.precioBase != null ? producto.precioBase : 0;
 }
 
 function actualizarPreciosSeleccionados() {
@@ -250,7 +264,7 @@ async function entrarCaja() {
       return;
     }
     if (state.caja.estado === 'CERRADA') {
-      const saldo = await Utils.promptInput('Saldo Inicial', '\u00bfCon cu\u00e1nto efectivo comienzas?', '0');
+      const saldo = await Utils.promptInput('Fondo general', '\u00bfCon cu\u00e1nto efectivo comienzas?', obtenerFondoGeneral());
       if (saldo === null) return;
       await API.post('/cajas/' + id + '/apertura', { saldoInicial: parseFloat(saldo) || 0 });
       state.caja = await API.get('/cajas/' + id);
@@ -280,9 +294,6 @@ async function cargarCotizacionDesdeLocalStorage() {
     const quote = JSON.parse(raw);
     localStorage.removeItem('cotizacionParaVenta');
     state.idCotizacionActiva = quote.idCotizacion || null;
-    const precioSelector = document.getElementById('precioSelector');
-    if (precioSelector) precioSelector.value = String(quote.precioSeleccionado || 1);
-
     if (state.cart.length > 0) {
       await ponerEnEspera();
       if (state.cart.length > 0) {
@@ -351,12 +362,11 @@ async function iniciarPOS() {
   window.__cajaAbierta = true;
   actualizarSaldoCaja();
   Utils.cargarOpcionesCategoria('posFilterCategoria', 'Todas las categor&iacute;as');
-  cargarClientesSelect('posCliente');
-  cargarClientesSelect('posVrCliente');
-  cargarPaises('posClientePais');
-  cargarRegimenes('posClienteRegimen');
+  await cargarClientesSelect('posCliente');
+  await cargarClientesSelect('posVrCliente');
   state.cart = [];
   await cargarProductosParaVenta();
+  await abrirRenovacionPendiente();
   await cargarReservasSucursal();
   await sincronizarCarritoDesdeServidor();
   await cargarCotizacionDesdeLocalStorage();
@@ -445,6 +455,7 @@ async function sincronizarCarritoDesdeServidor() {
   if (!state.caja?.idCaja) return;
 
   const reservasCaja = state.reservas.filter(r => r.idCaja === state.caja.idCaja);
+  const membresiaItems = state.cart.filter(d => d.sku === 'MEMBRESIA');
 
   const serverItems = reservasCaja.map(r => {
     const prod = state.productos.find(p => p.idProducto === r.idProducto);
@@ -470,9 +481,9 @@ async function sincronizarCarritoDesdeServidor() {
       stockActual: 999999,
       _idRapido: r.idItemRapido,
     }));
-    state.cart = [...serverItems, ...vrItems];
+    state.cart = [...serverItems, ...vrItems, ...membresiaItems];
   } catch (_) {
-    state.cart = serverItems;
+    state.cart = [...serverItems, ...membresiaItems];
   }
 
   renderCart();
@@ -488,9 +499,10 @@ function iniciarPollingCaja() {
       if (list) buscarProductos(true);
     }
     const reservasCaja = state.reservas.filter(r => r.idCaja === state.caja.idCaja);
-    const cartServerCount = state.cart.filter(d => d.sku !== 'VR' && d.sku !== 'ENVIO').length;
+    const cartServerCount = state.cart.filter(d => !['VR', 'ENVIO', 'MEMBRESIA'].includes(d.sku)).length;
     if (reservasCaja.length !== cartServerCount) {
       const envioItems = state.cart.filter(d => d.sku === 'ENVIO');
+      const membresiaItems = state.cart.filter(d => d.sku === 'MEMBRESIA');
       const nuevosCart = reservasCaja.map(r => {
         const existente = state.cart.find(d => d.idProducto === r.idProducto);
         if (existente) return { ...existente, cantidad: r.cantidad };
@@ -503,7 +515,7 @@ function iniciarPollingCaja() {
            precioUnitario: prod ? getPrecioProducto(prod) : 0,
         };
       });
-      state.cart = [...envioItems, ...nuevosCart];
+       state.cart = [...envioItems, ...nuevosCart, ...membresiaItems];
     }
     try {
       const rapidos = await API.get('/carrito/rapidos/' + state.caja.idCaja);
@@ -526,7 +538,7 @@ function iniciarPollingCaja() {
       const vrChanged = JSON.stringify(existingVr.map(v => v._idRapido).sort()) !== JSON.stringify(serverVrIds.sort())
         || existingVr.some(v => { const s = rapidos.find(r => r.idItemRapido === v._idRapido); return s && s.cantidad !== v.cantidad; });
       if (vrChanged || (state.cart.some(d => d.sku === 'VR') !== rapidos.length > 0)) {
-        state.cart = [...state.cart.filter(d => d.sku !== 'VR'), ...nuevosVr];
+         state.cart = [...state.cart.filter(d => d.sku !== 'VR'), ...nuevosVr];
       }
     } catch (_) {}
     renderCart();
@@ -550,6 +562,11 @@ async function cargarConfiguraciones() {
 
 async function onPosClienteChange() {
   const id = parseInt(document.getElementById('posCliente').value) || null;
+  const btnMembresia = document.getElementById('btnRenovarMembresiaPOS');
+  if (btnMembresia) {
+    btnMembresia.disabled = !id;
+    btnMembresia.title = id ? 'Renovar o añadir membresía' : 'Selecciona un cliente';
+  }
   if (id) {
     const cli = state.clientes.find(c => c.idCliente === id);
     if (cli && cli.enListaNegra) {
@@ -768,7 +785,7 @@ function renderCart() {
     tbody.innerHTML = state.cart.map((d, i) => {
       const unidad = (d.unidadMedida || 'UNIDAD').toUpperCase();
       const step = unidad === 'KG' ? '0.01' : '1';
-      const stockVisible = ['VR', 'ENVIO'].includes(d.sku || '') ? '' : '<td class="text-center small text-muted">' + (d.stockActual != null ? d.stockActual : '-') + '</td>';
+       const stockVisible = ['VR', 'ENVIO', 'MEMBRESIA'].includes(d.sku || '') ? '' : '<td class="text-center small text-muted">' + (d.stockActual != null ? d.stockActual : '-') + '</td>';
       return '<tr>' +
       '<td>' +
         '<div class="fw-semibold small">' + Utils.esc(d.nombre) + '</div>' +
@@ -778,9 +795,9 @@ function renderCart() {
       '<td class="text-center small text-muted">' + Utils.esc(unidad.toLowerCase()) + '</td>' +
       '<td>' +
         '<div class="d-flex align-items-center gap-1">' +
-          '<button class="pos-cart-qty-btn pos-cart-qty-minus" data-index="' + i + '"><i class="fas fa-minus"></i></button>' +
+           '<button class="pos-cart-qty-btn pos-cart-qty-minus" data-index="' + i + '"' + (d.sku === 'MEMBRESIA' ? ' disabled' : '') + '><i class="fas fa-minus"></i></button>' +
           '<input type="number" class="form-control form-control-sm pos-cart-qty-input text-center" data-index="' + i + '" value="' + d.cantidad + '" min="1" step="' + step + '" style="width:55px;font-size:0.8rem;padding:2px 4px">' +
-          '<button class="pos-cart-qty-btn pos-cart-qty-plus" data-index="' + i + '"><i class="fas fa-plus"></i></button>' +
+           '<button class="pos-cart-qty-btn pos-cart-qty-plus" data-index="' + i + '"' + (d.sku === 'MEMBRESIA' ? ' disabled' : '') + '><i class="fas fa-plus"></i></button>' +
         '</div>' +
       '</td>' +
       '<td>' +
@@ -808,6 +825,7 @@ function renderCart() {
           return;
         }
         if (item.sku === 'ENVIO') { renderCart(); return; }
+        if (item.sku === 'MEMBRESIA') { renderCart(); return; }
         const p = state.productos.find(x => x.idProducto === item.idProducto);
         if (p && newQty > stockCajaDisponible(p)) {
           Utils.showToast('Stock insuficiente en esta sucursal', 'warning');
@@ -848,6 +866,7 @@ function renderCart() {
           renderCart();
           return;
         }
+        if (item.sku === 'MEMBRESIA') return;
         if (item.cantidad > 1) {
           try {
             await API.put('/carrito/actualizar', {
@@ -909,6 +928,8 @@ function renderCart() {
           }
         } else if (item.sku === 'ENVIO') {
           // ENVIO items are local-only, no server API needed
+        } else if (item.sku === 'MEMBRESIA') {
+          // Membership items are finalized together with the sale.
         } else if (state.caja?.idCaja) {
           try {
             await API.del('/carrito/quitar/' + item.idProducto + '?idCaja=' + state.caja.idCaja);
@@ -1036,13 +1057,6 @@ async function cargarFormasPagoCobro() {
 
   try {
     const tipos = await API.get('/tipos-pago');
-    const total = Utils.parseMonto(document.getElementById('posCobroTotal').textContent);
-    const clienteIdSel = parseInt(document.getElementById('posCliente').value) || null;
-    const clienteCredito = state.clientes.find(c => c && c.idCliente === clienteIdSel) || null;
-    const clienteHabilitaCredito = !!(clienteCredito && clienteCredito.tieneCredito);
-    const clienteCreditoNombres = clienteCredito
-      ? Utils.esc((clienteCredito.nombre || '') + ' ' + (clienteCredito.apellidoPaterno || '')) + (clienteHabilitaCredito ? '' : ' <span class="text-danger">(sin cr\u00e9dito)</span>')
-      : '<span class="text-muted">Selecciona un cliente en el POS</span>';
 
     if (!tipos || tipos.length === 0) {
       container.innerHTML = '<div class="text-center py-3 text-muted">No hay formas de pago configuradas</div>';
@@ -1067,25 +1081,7 @@ async function cargarFormasPagoCobro() {
           </div>
         </div>
       </div>`;
-    }).join('') +
-
-      `<div class="payment-row payment-credito-row border rounded p-2 mb-1" style="background:rgba(13,110,253,.05)">
-        <div class="row g-2 align-items-center">
-          <div class="col-3">
-            <span class="fw-semibold small text-primary"><i class="fas fa-credit-card me-1"></i>CR\u00c9DITO</span>
-            <input type="hidden" class="payment-credito" value="1">
-          </div>
-          <div class="col-3">
-            <div class="input-group input-group-sm">
-              <span class="input-group-text">$</span>
-              <input type="number" class="form-control payment-monto payment-credito-monto" data-credito="1" step="0.01" min="0" value="0.00" ${clienteHabilitaCredito ? '' : 'disabled'}>
-            </div>
-          </div>
-          <div class="col-6">
-            <small class="text-muted">Cliente: <strong>${clienteCreditoNombres}</strong><br>${clienteHabilitaCredito ? '' : '<span class="text-danger" style="font-size:0.7rem">Selecciona un cliente con cr\u00e9dito habilitado</span>'}</small>
-          </div>
-        </div>
-      </div>`;
+    }).join('');
 
     container.oninput = recalcularSumaCobro;
 
@@ -1133,45 +1129,14 @@ async function confirmarCobro() {
   const nota = document.getElementById('posCobroNota').value.trim() || null;
 
   const pagos = [];
-  let montoCredito = 0;
   document.querySelectorAll('.payment-monto').forEach(inp => {
     const monto = parseFloat(inp.value) || 0;
     if (monto <= 0) return;
-    if (inp.dataset.credito) {
-      montoCredito += monto;
-      return;
-    }
     const idTipoPago = parseInt(inp.dataset.id);
     const refInput = document.querySelector(`.payment-referencia[data-id="${idTipoPago}"]`);
     const referencia = refInput ? refInput.value.trim() || null : null;
     pagos.push({ idTipoPago, monto, referencia });
   });
-
-  if (montoCredito > 0.01) {
-    if (!clienteId) {
-      Utils.showToast('Selecciona un cliente en el POS para venta a cr\u00e9dito', 'warning');
-      return;
-    }
-    const cliente = state.clientes.find(c => c.idCliente === clienteId);
-    if (!cliente || !cliente.tieneCredito) {
-      Utils.showToast('El cliente seleccionado no tiene cr\u00e9dito habilitado', 'warning');
-      return;
-    }
-    if (cliente.limiteCredito != null) {
-      const disp = cliente.limiteCredito - (cliente.saldoActual || 0);
-      if (montoCredito > disp) {
-        Utils.showToast('El total excede el l\u00edmite de cr\u00e9dito disponible (' + Utils.formatMonto(disp) + ')', 'warning');
-        return;
-      }
-    }
-    const sumaPagos = pagos.reduce((s, p) => s + p.monto, 0);
-    if (Math.abs((sumaPagos + montoCredito) - total) > 0.01) {
-      Utils.showToast('Los pagos y el monto a cr\u00e9dito deben cubrir exactamente el total', 'warning');
-      return;
-    }
-    await pedirConfirmarCredito(total, subtotal, clienteId, nota, pagos, montoCredito);
-    return;
-  }
 
   if (pagos.length === 0) {
     Utils.showToast('Selecciona al menos una forma de pago', 'warning');
@@ -1187,25 +1152,27 @@ async function confirmarCobro() {
   const request = {
     idCaja: state.caja.idCaja,
     idCliente: clienteId || null,
-    tipoVenta: montoCredito > 0 ? 'CREDITO' : 'CONTADO',
+    tipoVenta: 'CONTADO',
     precioSeleccionado: 1,
     subtotal: subtotal,
     descuento: subtotal - total,
     total: total,
     nota: nota,
     detalles: state.cart.map(d => ({
-      idProducto: d.sku === 'ENVIO' || d.sku === 'VR' ? null : d.idProducto,
-      descripcion: d.sku === 'ENVIO' || d.sku === 'VR' ? (d.descripcion || d.nombre) : null,
-      tipoDetalle: d.sku === 'VR' ? 'RAPIDO' : (d.sku === 'ENVIO' ? 'ENVIO' : 'PRODUCTO'),
+       idProducto: ['ENVIO', 'VR', 'MEMBRESIA'].includes(d.sku) ? null : d.idProducto,
+       descripcion: ['ENVIO', 'VR', 'MEMBRESIA'].includes(d.sku) ? (d.descripcion || d.nombre) : null,
+       tipoDetalle: d.sku === 'VR' ? 'RAPIDO' : (d.sku === 'ENVIO' ? 'ENVIO' : (d.sku === 'MEMBRESIA' ? 'MEMBRESIA' : 'PRODUCTO')),
       idItemRapido: d.sku === 'VR' ? d._idRapido : null,
       cantidad: d.cantidad,
       precioUnitario: d.precioUnitario,
       subtotal: d.cantidad * d.precioUnitario,
       atributosText: null,
-      costoUnitario: d.costoVenta || d.precioCompra || null,
-    })),
+       costoUnitario: d.costoVenta || d.precioCompra || null,
+     })),
+     idMembresia: state.cart.find(d => d.sku === 'MEMBRESIA')?.idMembresia || null,
+     duracionMembresia: state.cart.find(d => d.sku === 'MEMBRESIA')?.duracionMembresia || null,
     pagos: pagos,
-    montoCredito: montoCredito || null,
+     montoCredito: null,
   };
 
   state.cobrando = true;
@@ -1258,6 +1225,106 @@ async function pedirConfirmarCredito(total, subtotal, clienteId, nota, pagos, mo
   actualizarResumenCreditoPOS();
   bootstrap.Modal.getInstance(document.getElementById('posCobroModal'))?.hide();
   new bootstrap.Modal(document.getElementById('posCreditoModal')).show();
+}
+
+function abrirMembresiaDesdePOS() {
+  const idCliente = parseInt(document.getElementById('posCliente')?.value) || null;
+  if (!idCliente) {
+    Utils.showToast('Selecciona un cliente para renovar su membresía', 'warning');
+    return;
+  }
+  const cliente = state.clientes.find(c => c.idCliente === idCliente);
+  localStorage.setItem('membresiaParaPOS', JSON.stringify({
+    idCliente,
+    nombre: (cliente?.nombre || '') + ' ' + (cliente?.apellidoPaterno || ''),
+    tipoMembresia: cliente?.tipoMembresia || null,
+    fechaFinMembresia: cliente?.fechaFinMembresia || null,
+    membresiaActiva: Boolean(cliente && cliente.activo && cliente.fechaFinMembresia &&
+      new Date(cliente.fechaFinMembresia + 'T23:59:59') >= new Date()),
+    accion: cliente?.fechaFinMembresia && new Date(cliente.fechaFinMembresia + 'T23:59:59') >= new Date() ? 'renovar' : 'anadir',
+  }));
+  abrirRenovacionPendiente();
+}
+
+function obtenerFondoGeneral() {
+  return state.configs?.fondoCajas || '0';
+}
+
+async function abrirRenovacionPendiente() {
+  const raw = localStorage.getItem('membresiaParaPOS');
+  if (!raw || !state.caja?.idCaja) return;
+  localStorage.removeItem('membresiaParaPOS');
+  try {
+    const data = JSON.parse(raw);
+    const membresias = await API.get('/membresias/activas');
+    const select = document.getElementById('posMembresiaSelect');
+    if (!select || !membresias?.length) { Utils.showToast('No hay membresías activas configuradas', 'warning'); return; }
+    select.innerHTML = membresias.map(m => `<option value="${m.idMembresia}">${Utils.esc(m.nombre)}</option>`).join('');
+
+    const fechaFin = data.fechaFinMembresia ? new Date(data.fechaFinMembresia + 'T23:59:59') : null;
+    const membresiaActiva = Boolean(data.membresiaActiva && fechaFin && fechaFin >= new Date());
+    if (membresiaActiva) {
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const fin = new Date(data.fechaFinMembresia + 'T00:00:00');
+      // La diferencia entre fechas ya representa los días restantes; no sumar
+      // un día extra para que un mes no se muestre como 32 días.
+      const diasRestantes = Math.max(1, Math.ceil((fin - hoy) / 86400000));
+      const continuar = await Utils.confirm(
+        'El cliente tiene una membresía activa con ' + diasRestantes + ' día(s) restante(s), hasta el ' +
+          fin.toLocaleDateString('es-MX') + '. ¿Deseas continuar para cobrar una nueva membresía?',
+        'Membresía vigente'
+      );
+      if (!continuar) return;
+    }
+
+    const tipoActual = (data.tipoMembresia || '').trim().toLowerCase();
+    const tipoSeleccionado = membresias.find(m => (m.nombre || '').trim().toLowerCase() === tipoActual);
+    if (tipoSeleccionado) select.value = String(tipoSeleccionado.idMembresia);
+    document.getElementById('posMembresiaCliente').textContent = 'Cliente: ' + (data.nombre || '');
+    document.getElementById('posMembresiaTitulo').textContent = membresiaActiva ? 'Renovar membresía' : 'Añadir membresía';
+    document.getElementById('posMembresiaModal').dataset.idCliente = data.idCliente;
+    const clienteSelect = document.getElementById('posCliente');
+    if (clienteSelect) {
+      clienteSelect.value = String(data.idCliente);
+      clienteSelect.dispatchEvent(new Event('change'));
+    }
+    new bootstrap.Modal(document.getElementById('posMembresiaModal')).show();
+  } catch (err) { Utils.showToast(err.message, 'error'); }
+}
+
+async function confirmarRenovacion() {
+  const modal = document.getElementById('posMembresiaModal');
+  const idCliente = parseInt(modal?.dataset.idCliente);
+  const idMembresia = parseInt(document.getElementById('posMembresiaSelect')?.value);
+  const duracion = document.getElementById('posMembresiaDuracion')?.value;
+  if (!idCliente || !idMembresia || !state.caja?.idCaja) return;
+  try {
+    const membresias = await API.get('/membresias/activas');
+    const membresia = (membresias || []).find(m => m.idMembresia === idMembresia);
+    if (!membresia) throw new Error('Membresía no encontrada');
+    const precios = { DIA: membresia.precioDia, SEMANA: membresia.precioSemana, MES: membresia.precioMes, ANIO: membresia.precioAnio };
+    const precio = Number(precios[duracion] || 0);
+    if (precio <= 0) throw new Error('La membresía no tiene precio configurado para esa duración');
+    state.cart = state.cart.filter(item => item.sku !== 'MEMBRESIA');
+    state.cart.push({
+      idProducto: null,
+      sku: 'MEMBRESIA',
+      nombre: 'Membresía - ' + membresia.nombre + ' (' + duracion.toLowerCase() + ')',
+      descripcion: 'Membresía ' + membresia.nombre + ' - ' + duracion,
+      unidadMedida: 'UNIDAD',
+      cantidad: 1,
+      precioUnitario: precio,
+      stockActual: null,
+      idMembresia,
+      duracionMembresia: duracion,
+    });
+    bootstrap.Modal.getInstance(modal)?.hide();
+    renderCart();
+    Utils.showToast('Membresía agregada al carrito. Continúa con el cobro.', 'success');
+    const select = document.getElementById('posCliente');
+    if (select) select.value = String(idCliente);
+  } catch (err) { Utils.showToast(err.message, 'error'); }
 }
 
 function actualizarResumenCreditoPOS() {
@@ -2193,69 +2260,26 @@ async function abandonarCaja() {
 }
 
 function actualizarOpcionesPrecio() {
-  const selector = document.getElementById('precioSelector');
-  if (!selector) return;
-  [...selector.options].forEach(option => {
-    const index = parseInt(option.value);
-    option.disabled = index > 1 && !state.productos.some(p => p['precio' + index] != null && p['precio' + index] > 0);
-  });
-  if (selector.selectedOptions[0]?.disabled) selector.value = '1';
+  // El sistema utiliza un único precio de venta por producto.
 }
 
 function abrirClienteModal() {
   document.getElementById('formPosCliente').reset();
-  document.getElementById('posClienteEstado').value = '';
-  document.getElementById('posClienteMunicipio').value = '';
-  document.getElementById('posClienteColonia').innerHTML = '<option value="">Seleccionar...</option>';
-  const group = document.getElementById('posClienteLimiteCreditoGroup');
-  if (group) group.style.display = 'none';
-  cargarPaises('posClientePais');
-  cargarRegimenes('posClienteRegimen');
   new bootstrap.Modal(document.getElementById('posClienteModal')).show();
 }
 
 async function guardarClienteDesdePOS() {
-  function buildDireccionPOS() {
-    const calle = document.getElementById('posClienteCalle')?.value?.trim() || '';
-    const numExt = document.getElementById('posClienteNumExt')?.value?.trim() || '';
-    const numInt = document.getElementById('posClienteNumInt')?.value?.trim() || '';
-    const colonia = document.getElementById('posClienteColonia')?.value || '';
-    const municipio = document.getElementById('posClienteMunicipio')?.value?.trim() || '';
-    const estado = document.getElementById('posClienteEstado')?.value?.trim() || '';
-    const cp = document.getElementById('posClienteCp')?.value?.trim() || '';
-    const parts = [];
-    if (calle) parts.push(calle);
-    if (numExt) parts.push('Ext. ' + numExt);
-    if (numInt) parts.push('Int. ' + numInt);
-    if (colonia) parts.push(colonia);
-    if (municipio) parts.push(municipio);
-    if (estado) parts.push(estado);
-    if (cp) parts.push('C.P. ' + cp);
-    return parts.join(', ');
-  }
-
-  const tieneCredito = document.getElementById('posClienteTieneCredito').checked;
   const data = {
     nombre: document.getElementById('posClienteNombre').value.trim(),
     apellidoPaterno: document.getElementById('posClienteApaterno').value.trim(),
     apellidoMaterno: document.getElementById('posClienteAmaterno').value.trim(),
-    telefono: document.getElementById('posClienteTelefono').value.trim(),
-    codigoPais: document.getElementById('posClientePais').value,
-    whatsapp: document.getElementById('posClienteWhatsapp').value.trim(),
-    empresa: document.getElementById('posClienteEmpresa').value.trim(),
-    regimenFiscal: document.getElementById('posClienteRegimen').value,
-    rfc: document.getElementById('posClienteRfc')?.value?.trim() || null,
-    representanteLegal: document.getElementById('posClienteRepresentanteLegal')?.value?.trim() || null,
-    direccionEntrega: document.getElementById('posClienteDireccionEntrega')?.value?.trim() || null,
-    cp: document.getElementById('posClienteCp')?.value?.trim() || null,
-    direccion: buildDireccionPOS() || null,
-    tieneCredito: tieneCredito,
-    limiteCredito: tieneCredito ? (parseFloat(document.getElementById('posClienteLimiteCredito').value) || 0) : 0,
+    telefono: '',
+    codigoPais: 'MX',
+    regimenFiscal: 'N/A',
   };
 
   if (!data.nombre) { Utils.showToast('Nombre requerido', 'warning'); return; }
   if (!data.apellidoPaterno) { Utils.showToast('Apellido paterno requerido', 'warning'); return; }
-  if (!data.telefono) { Utils.showToast('Tel\u00e9fono requerido', 'warning'); return; }
 
 
   try {

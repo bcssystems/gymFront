@@ -7,6 +7,7 @@ let state = {
   paises: [],
   detalleClienteId: null,
   showInactive: false,
+  fotoSeleccionada: null,
 };
 
 const REGIMENES_FISCALES = [
@@ -41,6 +42,8 @@ function bindEvents() {
   document.getElementById('tableClientesBody')?.addEventListener('click', handleTableClick);
   document.getElementById('searchCliente')?.addEventListener('input', Utils.debounce(() => cargarClientes(0), 400));
   document.getElementById('btnToggleClientesInactivos')?.addEventListener('click', toggleInactivos);
+  document.getElementById('clienteFotoInput')?.addEventListener('change', prepararFotoCliente);
+  document.getElementById('btnEliminarFotoCliente')?.addEventListener('click', eliminarFotoCliente);
 }
 
 async function cargarPaises() {
@@ -214,6 +217,12 @@ function abrirDetalleCliente(id) {
   gen.push('<div class="mb-1"><span class="text-muted">Contacto:</span> ' + formatear(c.representanteLegal) + '</div>');
   gen.push('<div class="mb-0"><span class="text-muted">Registro:</span> ' + (c.fechaRegistro ? Utils.formatDateTime(c.fechaRegistro) : '-') + '</div>');
   document.getElementById('clienteDetalleGeneral').innerHTML = gen.join('');
+  const fotoDetalle = document.getElementById('clienteDetalleFoto');
+  if (fotoDetalle) {
+    fotoDetalle.innerHTML = c.fotoUrl
+      ? '<img src="' + Utils.esc(API.mediaBaseUrl + c.fotoUrl) + '" alt="Foto del cliente" class="rounded-circle" style="width:130px;height:130px;object-fit:cover">'
+      : '<div class="rounded-circle bg-light text-primary d-flex align-items-center justify-content-center" style="width:130px;height:130px"><i class="fas fa-user fa-3x"></i></div>';
+  }
 
   const dir = [];
   const direccionNum = [c.calle, c.numExt, c.numInt].filter(Boolean).join(' ') || '-';
@@ -237,9 +246,11 @@ function abrirDetalleCliente(id) {
 
 function abrirModal(id) {
   state.editingId = id;
+  state.fotoSeleccionada = null;
   const modal = new bootstrap.Modal(document.getElementById('clienteModal'));
   document.getElementById('clienteModalTitle').textContent = id ? 'Editar Cliente' : 'Nuevo Cliente';
   document.getElementById('formCliente').reset();
+  renderFotoCliente(null, false);
 
   if (id) {
     const c = state.data.find(c => c.idCliente === id);
@@ -248,9 +259,56 @@ function abrirModal(id) {
       document.getElementById('clienteNombre').value = c.nombre || '';
       document.getElementById('clienteApaterno').value = c.apellidoPaterno || '';
       document.getElementById('clienteAmaterno').value = c.apellidoMaterno || '';
+      renderFotoCliente(c.fotoUrl, Boolean(c.fotoUrl));
     }
   }
   modal.show();
+}
+
+function renderFotoCliente(url, puedeEliminar) {
+  const preview = document.getElementById('clienteFotoPreview');
+  const btn = document.getElementById('btnEliminarFotoCliente');
+  if (preview) {
+    preview.innerHTML = url
+      ? '<img src="' + Utils.esc(API.mediaBaseUrl + url) + '" alt="Foto del cliente" style="width:100%;height:100%;object-fit:cover">'
+      : '<i class="fas fa-user fa-2x"></i>';
+  }
+  if (btn) btn.classList.toggle('d-none', !puedeEliminar);
+}
+
+function prepararFotoCliente(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    Utils.showToast('Selecciona una imagen válida', 'warning');
+    e.target.value = '';
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    Utils.showToast('La foto no puede superar 5 MB', 'warning');
+    e.target.value = '';
+    return;
+  }
+  state.fotoSeleccionada = file;
+  const reader = new FileReader();
+  reader.onload = ev => renderFotoCliente(ev.target.result, Boolean(state.editingId));
+  reader.readAsDataURL(file);
+}
+
+async function eliminarFotoCliente() {
+  if (!state.editingId) {
+    state.fotoSeleccionada = null;
+    document.getElementById('clienteFotoInput').value = '';
+    renderFotoCliente(null, false);
+    return;
+  }
+  try {
+    await API.del('/clientes/' + state.editingId + '/foto');
+    state.fotoSeleccionada = null;
+    document.getElementById('clienteFotoInput').value = '';
+    renderFotoCliente(null, false);
+    Utils.showToast('Foto eliminada', 'success');
+  } catch (err) { Utils.showToast(err.message, 'error'); }
 }
 
 function combinarTelefonoCliente() {
@@ -274,12 +332,18 @@ async function guardarCliente() {
   if (!data.apellidoPaterno) { Utils.showToast('El apellido paterno es obligatorio', 'warning'); return; }
 
   try {
+    let clienteGuardado;
     if (state.editingId) {
-      await API.put('/clientes/' + state.editingId, data);
+      clienteGuardado = await API.put('/clientes/' + state.editingId, data);
       Utils.showToast('Cliente actualizado', 'success');
     } else {
-      await API.post('/clientes', data);
+      clienteGuardado = await API.post('/clientes', data);
       Utils.showToast('Cliente creado', 'success');
+    }
+    if (state.fotoSeleccionada && clienteGuardado?.idCliente) {
+      const formData = new FormData();
+      formData.append('foto', state.fotoSeleccionada);
+      await API.requestUpload('/clientes/' + clienteGuardado.idCliente + '/foto', formData);
     }
     bootstrap.Modal.getInstance(document.getElementById('clienteModal'))?.hide();
     cargarClientes(state.currentPage);

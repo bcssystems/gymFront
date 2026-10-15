@@ -192,6 +192,8 @@ function bindEvents() {
   document.getElementById('posFilterCategoria')?.addEventListener('change', () => buscarProductos());
   document.getElementById('posCliente')?.addEventListener('change', onPosClienteChange);
   document.getElementById('btnConfirmarRenovacion')?.addEventListener('click', confirmarRenovacion);
+  document.getElementById('posMembresiaSelect')?.addEventListener('change', actualizarPrecioMembresia);
+  document.getElementById('posMembresiaDuracion')?.addEventListener('change', actualizarPrecioMembresia);
 }
 
 function getPrecioProducto(producto) {
@@ -1259,7 +1261,7 @@ async function abrirRenovacionPendiente() {
     const membresias = await API.get('/membresias/activas');
     const select = document.getElementById('posMembresiaSelect');
     if (!select || !membresias?.length) { Utils.showToast('No hay membresías activas configuradas', 'warning'); return; }
-    select.innerHTML = membresias.map(m => `<option value="${m.idMembresia}">${Utils.esc(m.nombre)}</option>`).join('');
+    select.innerHTML = membresias.map(m => `<option value="${m.idMembresia}" data-nombre="${Utils.esc(m.nombre)}">${Utils.esc(m.nombre)}</option>`).join('');
 
     const fechaFin = data.fechaFinMembresia ? new Date(data.fechaFinMembresia + 'T23:59:59') : null;
     const membresiaActiva = Boolean(data.membresiaActiva && fechaFin && fechaFin >= new Date());
@@ -1281,6 +1283,7 @@ async function abrirRenovacionPendiente() {
     const tipoActual = (data.tipoMembresia || '').trim().toLowerCase();
     const tipoSeleccionado = membresias.find(m => (m.nombre || '').trim().toLowerCase() === tipoActual);
     if (tipoSeleccionado) select.value = String(tipoSeleccionado.idMembresia);
+    actualizarPrecioMembresia(membresias);
     document.getElementById('posMembresiaCliente').textContent = 'Cliente: ' + (data.nombre || '');
     document.getElementById('posMembresiaTitulo').textContent = membresiaActiva ? 'Renovar membresía' : 'Añadir membresía';
     document.getElementById('posMembresiaModal').dataset.idCliente = data.idCliente;
@@ -1291,6 +1294,25 @@ async function abrirRenovacionPendiente() {
     }
     new bootstrap.Modal(document.getElementById('posMembresiaModal')).show();
   } catch (err) { Utils.showToast(err.message, 'error'); }
+}
+
+function actualizarPrecioMembresia(membresiasDisponibles) {
+  const select = document.getElementById('posMembresiaSelect');
+  const duracion = document.getElementById('posMembresiaDuracion')?.value;
+  const lista = Array.isArray(membresiasDisponibles) ? membresiasDisponibles : state.membresiasPOS;
+  const membresia = (lista || []).find(m => String(m.idMembresia) === String(select?.value));
+  const precios = { DIA: membresia?.precioDia, SEMANA: membresia?.precioSemana, MES: membresia?.precioMes, ANIO: membresia?.precioAnio };
+  const precio = Number(precios[duracion] || 0);
+  if (select && Array.isArray(lista)) {
+    select.querySelectorAll('option').forEach(option => {
+      const m = lista.find(item => String(item.idMembresia) === String(option.value));
+      const p = Number(({ DIA: m?.precioDia, SEMANA: m?.precioSemana, MES: m?.precioMes, ANIO: m?.precioAnio }[duracion]) || 0);
+      option.textContent = (m?.nombre || option.dataset.nombre || 'Membresía') + ' — ' + Utils.formatMonto(p);
+    });
+  }
+  const el = document.getElementById('posMembresiaPrecio');
+  if (el) el.textContent = Utils.formatMonto(precio);
+  if (Array.isArray(membresiasDisponibles)) state.membresiasPOS = membresiasDisponibles;
 }
 
 async function confirmarRenovacion() {

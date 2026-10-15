@@ -63,6 +63,19 @@
               <label class="form-label">Apellido Materno</label>
               <input type="text" class="form-control" id="clienteAmaterno" maxlength="100">
             </div>
+            <div class="col-12">
+              <label class="form-label">Foto del cliente</label>
+              <div class="d-flex align-items-center gap-3">
+                <div id="clienteFotoPreview" class="rounded-circle bg-light d-flex align-items-center justify-content-center text-primary" style="width:82px;height:82px;overflow:hidden">
+                  <i class="fas fa-user fa-2x"></i>
+                </div>
+                <div>
+                  <input type="file" class="form-control form-control-sm" id="clienteFotoInput" accept="image/*" capture="user">
+                  <button type="button" class="btn btn-outline-danger btn-sm mt-2 d-none" id="btnEliminarFotoCliente"><i class="fas fa-trash me-1"></i>Eliminar foto</button>
+                  <div class="form-text">Solo una imagen, máximo 5 MB.</div>
+                </div>
+              </div>
+            </div>
               <div class="col-12"><hr class="my-1"></div>
           </div>
         </form>
@@ -90,7 +103,13 @@
               <div id="clienteDetalleGeneral" class="small"></div>
             </div>
           </div>
-           <div class="col-md-6"></div>
+            <div class="col-md-6">
+              <div class="panel-card mb-0 text-center">
+                <h6 class="fw-semibold mb-2"><i class="fas fa-camera me-1"></i> Foto</h6>
+                <div id="clienteDetalleFoto" class="d-flex justify-content-center"></div>
+              </div>
+            </div>
+            <div class="col-12"><div class="panel-card mb-0"><h6 class="fw-semibold mb-2"><i class="fas fa-map-marker-alt me-1"></i> Dirección</h6><div id="clienteDetalleDireccion" class="small"></div></div></div>
            <div class="col-12"><div class="panel-card mb-0"><h6 class="fw-semibold mb-2"><i class="fas fa-id-card me-1"></i> Membres&iacute;a</h6><div id="clienteDetalleMembresia" class="small"></div></div></div>
         </div>
       </div>

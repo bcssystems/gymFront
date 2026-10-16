@@ -3,14 +3,40 @@ let state = { data: [], page: 0, totalPages: 0, size: 15 };
 export function init() {
   document.getElementById('searchMembresiaActiva')?.addEventListener('input', Utils.debounce(() => cargar(0), 350));
   document.getElementById('tableMembresiasActivasBody')?.addEventListener('click', manejarClick);
+  ['filtroTipoMembresiaActiva', 'filtroInicioDesde', 'filtroFinHasta']
+    .forEach(id => document.getElementById(id)?.addEventListener('change', () => cargar(0)));
+  document.getElementById('btnLimpiarFiltrosMembresias')?.addEventListener('click', limpiarFiltros);
+  cargarTipos();
   cargar(0);
+}
+
+async function cargarTipos() {
+  try {
+    const tipos = await API.get('/membresias/activas');
+    const select = document.getElementById('filtroTipoMembresiaActiva');
+    if (!select) return;
+    select.innerHTML = '<option value="">Todos los tipos</option>' + (tipos || []).map(m =>
+      '<option value="' + Utils.esc(m.nombre) + '">' + Utils.esc(m.nombre) + '</option>'
+    ).join('');
+  } catch (_) {}
+}
+
+function valorFiltro(id) {
+  return document.getElementById(id)?.value || '';
 }
 
 async function cargar(page) {
   state.page = page;
   const search = document.getElementById('searchMembresiaActiva')?.value || '';
   try {
-    const result = await API.get('/clientes/membresias-activas?search=' + encodeURIComponent(search) + '&page=' + page + '&size=' + state.size);
+    const params = new URLSearchParams({ search, page: String(page), size: String(state.size) });
+    const filtros = {
+      tipo: valorFiltro('filtroTipoMembresiaActiva'),
+      inicioDesde: valorFiltro('filtroInicioDesde'),
+      finHasta: valorFiltro('filtroFinHasta'),
+    };
+    Object.entries(filtros).forEach(([key, value]) => { if (value) params.set(key, value); });
+    const result = await API.get('/clientes/membresias-activas?' + params.toString());
     state.data = result.content || [];
     state.totalPages = result.totalPages || 0;
     render();
@@ -18,6 +44,12 @@ async function cargar(page) {
   } catch (err) {
     Utils.showToast(err.message, 'error');
   }
+}
+
+function limpiarFiltros() {
+  ['searchMembresiaActiva', 'filtroTipoMembresiaActiva', 'filtroInicioDesde', 'filtroFinHasta']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  cargar(0);
 }
 
 function diasRestantes(fecha) {
@@ -51,16 +83,23 @@ function render() {
       '<td>' + Utils.formatDate(c.fechaInicioMembresia) + '</td>' +
       '<td>' + Utils.formatDate(c.fechaFinMembresia) + '</td>' +
       '<td><span class="badge ' + (dias <= 7 ? 'bg-warning text-dark' : 'bg-success') + '">' + dias + '</span></td>' +
-      '<td class="acciones-cell"><button class="btn btn-sm btn-outline-success btn-renovar-activa" data-id="' + c.idCliente + '" title="Renovar en POS"><i class="fas fa-cash-register"></i></button></td>' +
+      '<td class="acciones-cell"><button type="button" class="btn-kebab-toggle kebab-trigger" data-id="' + c.idCliente + '" title="Acciones"><i class="fas fa-ellipsis-v"></i></button></td>' +
       '</tr>';
   }).join('');
 }
 
 function manejarClick(e) {
-  const btn = e.target.closest('.btn-renovar-activa');
+  const btn = e.target.closest('.kebab-trigger');
   if (!btn) return;
   const cliente = state.data.find(c => String(c.idCliente) === String(btn.dataset.id));
   if (!cliente) return;
+  Utils.abrirMenuKebab(btn, [
+    { icon: 'fa-eye', text: 'Ver cliente', color: 'var(--info)', onClick: () => verCliente(cliente.idCliente) },
+    { icon: 'fa-cash-register', text: 'Renovar membresía', color: 'var(--success)', onClick: () => renovarEnPOS(cliente) },
+  ]);
+}
+
+function renovarEnPOS(cliente) {
   localStorage.setItem('membresiaParaPOS', JSON.stringify({
     idCliente: cliente.idCliente,
     nombre: (cliente.nombre || '') + ' ' + (cliente.apellidoPaterno || ''),
@@ -70,6 +109,11 @@ function manejarClick(e) {
     accion: 'renovar',
   }));
   document.querySelector('[data-view="pages/ventas.html"]')?.click();
+}
+
+function verCliente(id) {
+  localStorage.setItem('clienteDetallePendiente', String(id));
+  document.querySelector('[data-view="pages/clientes.html"]')?.click();
 }
 
 function renderPagination() {

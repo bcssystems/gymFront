@@ -21,6 +21,7 @@
       <table class="table table-custom mb-0" style="white-space:nowrap;min-width:100%">
         <thead>
           <tr>
+            <th>Foto</th>
             <th>Nombre</th>
             <th>Apellido</th>
             <th>EmployeeNo</th>
@@ -31,7 +32,7 @@
           </tr>
         </thead>
         <tbody id="tableClientesBody">
-           <tr><td colspan="7"><div class="empty-state"><i class="fas fa-address-book"></i><p>Cargando...</p></div></td></tr>
+           <tr><td colspan="8"><div class="empty-state"><i class="fas fa-address-book"></i><p>Cargando...</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -50,6 +51,15 @@
       <div class="modal-body">
         <form id="formCliente">
           <input type="hidden" id="clienteId">
+          <div class="text-center mb-3">
+            <label class="form-label d-block">Foto del cliente</label>
+            <div id="clienteFotoPreview" class="rounded-circle bg-light d-flex align-items-center justify-content-center text-primary mx-auto" style="width:110px;height:110px;overflow:hidden">
+              <i class="fas fa-user fa-3x"></i>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="btnTomarFotoCliente"><i class="fas fa-camera me-1"></i>Abrir cámara</button>
+            <button type="button" class="btn btn-outline-danger btn-sm mt-2 d-none" id="btnEliminarFotoCliente"><i class="fas fa-trash me-1"></i>Eliminar foto</button>
+            <div class="form-text">Toma la foto directamente con la cámara.</div>
+          </div>
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Nombre <span class="text-danger">*</span></label>
@@ -62,19 +72,6 @@
             <div class="col-md-6">
               <label class="form-label">Apellido Materno</label>
               <input type="text" class="form-control" id="clienteAmaterno" maxlength="100">
-            </div>
-            <div class="col-12">
-              <label class="form-label">Foto del cliente</label>
-              <div class="d-flex align-items-center gap-3">
-                <div id="clienteFotoPreview" class="rounded-circle bg-light d-flex align-items-center justify-content-center text-primary" style="width:82px;height:82px;overflow:hidden">
-                  <i class="fas fa-user fa-2x"></i>
-                </div>
-                <div>
-                  <input type="file" class="form-control form-control-sm" id="clienteFotoInput" accept="image/*" capture="user">
-                  <button type="button" class="btn btn-outline-danger btn-sm mt-2 d-none" id="btnEliminarFotoCliente"><i class="fas fa-trash me-1"></i>Eliminar foto</button>
-                  <div class="form-text">Solo una imagen, máximo 5 MB.</div>
-                </div>
-              </div>
             </div>
               <div class="col-12"><hr class="my-1"></div>
           </div>
@@ -96,25 +93,44 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body pt-2">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <div class="panel-card mb-0">
-              <h6 class="fw-semibold mb-2"><i class="fas fa-id-card me-1"></i> Datos generales</h6>
+        <div class="panel-card p-4 mb-0">
+          <div class="text-center mb-4">
+            <div id="clienteDetalleFoto" class="d-flex justify-content-center mb-2"></div>
+            <h6 class="fw-semibold mb-0">Informaci&oacute;n del cliente</h6>
+          </div>
+          <div class="row g-4">
+            <div class="col-md-6">
+              <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="fas fa-user me-1"></i> Datos generales</h6>
               <div id="clienteDetalleGeneral" class="small"></div>
             </div>
-          </div>
             <div class="col-md-6">
-              <div class="panel-card mb-0 text-center">
-                <h6 class="fw-semibold mb-2"><i class="fas fa-camera me-1"></i> Foto</h6>
-                <div id="clienteDetalleFoto" class="d-flex justify-content-center"></div>
-              </div>
+              <h6 class="fw-semibold border-bottom pb-2 mb-3"><i class="fas fa-id-card me-1"></i> Membres&iacute;a</h6>
+              <div id="clienteDetalleMembresia" class="small"></div>
             </div>
-            <div class="col-12"><div class="panel-card mb-0"><h6 class="fw-semibold mb-2"><i class="fas fa-map-marker-alt me-1"></i> Dirección</h6><div id="clienteDetalleDireccion" class="small"></div></div></div>
-           <div class="col-12"><div class="panel-card mb-0"><h6 class="fw-semibold mb-2"><i class="fas fa-id-card me-1"></i> Membres&iacute;a</h6><div id="clienteDetalleMembresia" class="small"></div></div></div>
+          </div>
         </div>
       </div>
       <div class="modal-footer border-0">
         <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="clienteCamaraModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold"><i class="fas fa-camera me-1"></i>Tomar foto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center">
+        <video id="clienteCamaraVideo" autoplay playsinline class="w-100 rounded" style="max-height:360px;object-fit:cover;background:#111"></video>
+        <div id="clienteCamaraMensaje" class="small text-muted mt-2"></div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnCapturarFotoCliente"><i class="fas fa-camera me-1"></i>Capturar</button>
       </div>
     </div>
   </div>

@@ -28,6 +28,8 @@ let state = {
   cobrando: false,
   selectorCajaBound: false,
   cobradores: [],
+  fotoClientePOS: null,
+  camaraClientePOS: null,
 };
 
 const REGIMENES_FISCALES = [
@@ -127,6 +129,10 @@ function bindEvents() {
   document.getElementById('btnNuevoClientePOS')?.addEventListener('click', () => abrirClienteModal());
   document.getElementById('btnRenovarMembresiaPOS')?.addEventListener('click', abrirMembresiaDesdePOS);
   document.getElementById('btnGuardarPosCliente')?.addEventListener('click', guardarClienteDesdePOS);
+  document.getElementById('posClienteFotoInput')?.addEventListener('change', prepararFotoClientePOS);
+  document.getElementById('btnTomarFotoClientePOS')?.addEventListener('click', abrirCamaraClientePOS);
+  document.getElementById('btnCapturarFotoClientePOS')?.addEventListener('click', capturarFotoClientePOS);
+  document.getElementById('posClienteCamaraModal')?.addEventListener('hidden.bs.modal', cerrarCamaraClientePOS);
   document.getElementById('posClienteCp')?.addEventListener('input', Utils.debounce(function() {
     const cp = this.value.trim();
     if (cp.length === 5) cargarColoniasPOS(cp, '');
@@ -2286,8 +2292,61 @@ function actualizarOpcionesPrecio() {
 }
 
 function abrirClienteModal() {
+  state.fotoClientePOS = null;
   document.getElementById('formPosCliente').reset();
+  renderFotoClientePOS(null);
   new bootstrap.Modal(document.getElementById('posClienteModal')).show();
+}
+
+function renderFotoClientePOS(url) {
+  const preview = document.getElementById('posClienteFotoPreview');
+  if (preview) preview.innerHTML = url
+    ? '<img src="' + Utils.esc(url) + '" alt="Foto" style="width:100%;height:100%;object-fit:cover">'
+    : '<i class="fas fa-user fa-2x"></i>';
+}
+
+function prepararFotoClientePOS(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+    Utils.showToast(file.type.startsWith('image/') ? 'La foto no puede superar 5 MB' : 'Selecciona una imagen válida', 'warning');
+    e.target.value = '';
+    return;
+  }
+  state.fotoClientePOS = file;
+  const reader = new FileReader();
+  reader.onload = ev => renderFotoClientePOS(ev.target.result);
+  reader.readAsDataURL(file);
+}
+
+async function abrirCamaraClientePOS() {
+  if (!navigator.mediaDevices?.getUserMedia) { Utils.showToast('La cámara no está disponible en este navegador', 'warning'); return; }
+  try {
+    state.camaraClientePOS = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    document.getElementById('posClienteCamaraVideo').srcObject = state.camaraClientePOS;
+    new bootstrap.Modal(document.getElementById('posClienteCamaraModal')).show();
+  } catch (_) { Utils.showToast('No se pudo abrir la cámara. Revisa los permisos.', 'error'); }
+}
+
+function capturarFotoClientePOS() {
+  const video = document.getElementById('posClienteCamaraVideo');
+  if (!video?.videoWidth) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    state.fotoClientePOS = new File([blob], 'foto_cliente_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+    renderFotoClientePOS(URL.createObjectURL(blob));
+    bootstrap.Modal.getInstance(document.getElementById('posClienteCamaraModal'))?.hide();
+  }, 'image/jpeg', 0.9);
+}
+
+function cerrarCamaraClientePOS() {
+  if (state.camaraClientePOS) state.camaraClientePOS.getTracks().forEach(track => track.stop());
+  state.camaraClientePOS = null;
+  const video = document.getElementById('posClienteCamaraVideo');
+  if (video) video.srcObject = null;
 }
 
 async function guardarClienteDesdePOS() {
@@ -2305,7 +2364,12 @@ async function guardarClienteDesdePOS() {
 
 
   try {
-    await API.post('/clientes', data);
+    const cliente = await API.post('/clientes', data);
+    if (state.fotoClientePOS && cliente?.idCliente) {
+      const formData = new FormData();
+      formData.append('foto', state.fotoClientePOS);
+      await API.requestUpload('/clientes/' + cliente.idCliente + '/foto', formData);
+    }
     Utils.showToast('Cliente creado', 'success');
     bootstrap.Modal.getInstance(document.getElementById('posClienteModal'))?.hide();
     await cargarClientesSelect('posCliente');

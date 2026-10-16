@@ -6,8 +6,28 @@
     </div>
   </div>
 
-  <div class="filter-bar">
-    <input type="text" class="form-control" id="searchMembresiaActiva" placeholder="Buscar por nombre, EmployeeNo o membresía...">
+  <div class="panel-card p-3 mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-lg-4 col-md-6">
+        <label class="form-label small mb-1">Buscar</label>
+        <input type="text" class="form-control" id="searchMembresiaActiva" placeholder="Nombre, EmployeeNo o membresía...">
+      </div>
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label small mb-1">Tipo de membresía</label>
+        <select class="form-select" id="filtroTipoMembresiaActiva"><option value="">Todos los tipos</option></select>
+      </div>
+      <div class="col-lg-2 col-md-6">
+        <label class="form-label small mb-1">Inicio de membresía</label>
+        <input type="date" class="form-control" id="filtroInicioDesde">
+      </div>
+      <div class="col-lg-2 col-md-6">
+        <label class="form-label small mb-1">Fin de membresía</label>
+        <input type="date" class="form-control" id="filtroFinHasta">
+      </div>
+      <div class="col-lg-1 col-md-6">
+        <button class="btn btn-outline-secondary w-100" id="btnLimpiarFiltrosMembresias" title="Limpiar filtros"><i class="fas fa-eraser"></i></button>
+      </div>
+    </div>
   </div>
 
   <div class="panel-card overflow-hidden">

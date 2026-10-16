@@ -215,6 +215,12 @@
       </div>
       <div class="modal-body">
         <form id="formPosCliente">
+          <div class="text-center mb-3">
+            <label class="form-label d-block">Foto del cliente</label>
+            <div id="posClienteFotoPreview" class="rounded-circle bg-light d-flex align-items-center justify-content-center text-primary mx-auto" style="width:100px;height:100px;overflow:hidden"><i class="fas fa-user fa-3x"></i></div>
+            <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="btnTomarFotoClientePOS"><i class="fas fa-camera me-1"></i>Abrir cámara</button>
+            <div class="form-text">Toma la foto directamente con la cámara.</div>
+          </div>
           <div class="row g-2">
             <div class="col-4">
               <label class="form-label">Nombre <span class="text-danger">*</span></label>
@@ -235,6 +241,16 @@
         <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary btn-sm px-4 ripple" id="btnGuardarPosCliente">Guardar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="posClienteCamaraModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0"><h5 class="modal-title fw-bold"><i class="fas fa-camera me-1"></i>Tomar foto</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body text-center"><video id="posClienteCamaraVideo" autoplay playsinline class="w-100 rounded" style="max-height:360px;object-fit:cover;background:#111"></video></div>
+      <div class="modal-footer border-0"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" id="btnCapturarFotoClientePOS"><i class="fas fa-camera me-1"></i>Capturar</button></div>
     </div>
   </div>
 </div>

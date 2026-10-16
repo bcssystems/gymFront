@@ -8,6 +8,7 @@ let state = {
   detalleClienteId: null,
   showInactive: false,
   fotoSeleccionada: null,
+  camaraStream: null,
 };
 
 const REGIMENES_FISCALES = [
@@ -44,6 +45,9 @@ function bindEvents() {
   document.getElementById('btnToggleClientesInactivos')?.addEventListener('click', toggleInactivos);
   document.getElementById('clienteFotoInput')?.addEventListener('change', prepararFotoCliente);
   document.getElementById('btnEliminarFotoCliente')?.addEventListener('click', eliminarFotoCliente);
+  document.getElementById('btnTomarFotoCliente')?.addEventListener('click', abrirCamaraCliente);
+  document.getElementById('btnCapturarFotoCliente')?.addEventListener('click', capturarFotoCliente);
+  document.getElementById('clienteCamaraModal')?.addEventListener('hidden.bs.modal', cerrarCamaraCliente);
 }
 
 async function cargarPaises() {
@@ -86,6 +90,11 @@ async function cargarClientes(page) {
     state.totalPages = result.totalPages;
     renderTable();
     renderPagination();
+    const pendiente = parseInt(localStorage.getItem('clienteDetallePendiente'));
+    if (pendiente) {
+      localStorage.removeItem('clienteDetallePendiente');
+      if (state.data.some(c => c.idCliente === pendiente)) abrirDetalleCliente(pendiente);
+    }
   } catch (err) { Utils.showToast(err.message, 'error'); }
 }
 
@@ -94,12 +103,16 @@ function renderTable() {
   if (!tbody) return;
 
   if (!state.data || state.data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-address-book"></i><p>No hay clientes</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><i class="fas fa-address-book"></i><p>No hay clientes</p></div></td></tr>';
     return;
   }
 
   tbody.innerHTML = state.data.map(c => {
+    const foto = c.fotoUrl
+      ? '<img src="' + Utils.esc(API.mediaBaseUrl + c.fotoUrl) + '" alt="" class="rounded-circle" style="width:38px;height:38px;object-fit:cover">'
+      : '<span class="rounded-circle d-inline-flex align-items-center justify-content-center bg-light text-primary" style="width:38px;height:38px"><i class="fas fa-user"></i></span>';
     return `<tr>
+    <td class="text-center">${foto}</td>
     <td>${Utils.esc(c.nombre)}</td>
     <td>${Utils.esc(c.apellidoPaterno || '')} ${Utils.esc(c.apellidoMaterno || '')}</td>
       <td>${Utils.esc(c.employeeNo || '-')}</td>
@@ -210,13 +223,12 @@ function abrirDetalleCliente(id) {
 
   const formatear = v => v ? Utils.esc(String(v)) : '-';
   const gen = [];
-  gen.push('<div class="mb-1"><span class="text-muted">RFC:</span> <strong>' + formatear(c.rfc) + '</strong></div>');
-  gen.push('<div class="mb-1"><span class="text-muted">R\u00e9gimen fiscal:</span> ' + formatear(c.regimenFiscal) + '</div>');
-  gen.push('<div class="mb-1"><span class="text-muted">WhatsApp:</span> ' + formatear(c.whatsapp) + '</div>');
-  gen.push('<div class="mb-1"><span class="text-muted">Empresa:</span> ' + formatear(c.empresa) + '</div>');
-  gen.push('<div class="mb-1"><span class="text-muted">Contacto:</span> ' + formatear(c.representanteLegal) + '</div>');
+  gen.push('<div class="mb-2"><span class="text-muted">Nombre:</span> <strong>' + formatear([c.nombre, c.apellidoPaterno, c.apellidoMaterno].filter(Boolean).join(' ')) + '</strong></div>');
+  gen.push('<div class="mb-2"><span class="text-muted">EmployeeNo:</span> <strong>' + formatear(c.employeeNo) + '</strong></div>');
+  gen.push('<div class="mb-2"><span class="text-muted">Estado:</span> ' + (c.activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>') + '</div>');
   gen.push('<div class="mb-0"><span class="text-muted">Registro:</span> ' + (c.fechaRegistro ? Utils.formatDateTime(c.fechaRegistro) : '-') + '</div>');
-  document.getElementById('clienteDetalleGeneral').innerHTML = gen.join('');
+  const detalleGeneral = document.getElementById('clienteDetalleGeneral');
+  if (detalleGeneral) detalleGeneral.innerHTML = gen.join('');
   const fotoDetalle = document.getElementById('clienteDetalleFoto');
   if (fotoDetalle) {
     fotoDetalle.innerHTML = c.fotoUrl
@@ -224,22 +236,14 @@ function abrirDetalleCliente(id) {
       : '<div class="rounded-circle bg-light text-primary d-flex align-items-center justify-content-center" style="width:130px;height:130px"><i class="fas fa-user fa-3x"></i></div>';
   }
 
-  const dir = [];
-  const direccionNum = [c.calle, c.numExt, c.numInt].filter(Boolean).join(' ') || '-';
-  dir.push('<div class="mb-1"><span class="text-muted">Direcci\u00f3n:</span> ' + formatear(direccionNum) + '</div>');
-  dir.push('<div class="mb-1"><span class="text-muted">Colonia:</span> ' + formatear(c.colonia) + '</div>');
-  dir.push('<div class="mb-1"><span class="text-muted">C.P.:</span> ' + formatear(c.cp) + '</div>');
-  dir.push('<div class="mb-1"><span class="text-muted">Municipio:</span> ' + formatear(c.municipio) + '</div>');
-  dir.push('<div class="mb-1"><span class="text-muted">Estado:</span> ' + formatear(c.estado) + '</div>');
-  dir.push('<div class="mb-0"><span class="text-muted">Entrega:</span> ' + formatear(c.direccionEntrega) + '</div>');
-  document.getElementById('clienteDetalleDireccion').innerHTML = dir.join('');
-
   const membresia = [];
-  membresia.push('<div class="mb-1"><span class="text-muted">EmployeeNo:</span> <strong>' + formatear(c.employeeNo) + '</strong></div>');
-  membresia.push('<div class="mb-1"><span class="text-muted">Tipo:</span> ' + formatear(c.tipoMembresia) + '</div>');
-  membresia.push('<div class="mb-1"><span class="text-muted">Inicio:</span> ' + (c.fechaInicioMembresia ? Utils.formatDate(c.fechaInicioMembresia) : '-') + '</div>');
-  membresia.push('<div class="mb-0"><span class="text-muted">Vencimiento:</span> ' + (c.fechaFinMembresia ? Utils.formatDate(c.fechaFinMembresia) : '-') + '</div>');
-  document.getElementById('clienteDetalleMembresia').innerHTML = membresia.join('');
+  membresia.push('<div class="mb-2"><span class="text-muted">Tipo:</span> ' + formatear(c.tipoMembresia) + '</div>');
+  membresia.push('<div class="mb-2"><span class="text-muted">Inicio:</span> ' + (c.fechaInicioMembresia ? Utils.formatDate(c.fechaInicioMembresia) : '-') + '</div>');
+  membresia.push('<div class="mb-2"><span class="text-muted">Vencimiento:</span> ' + (c.fechaFinMembresia ? Utils.formatDate(c.fechaFinMembresia) : '-') + '</div>');
+  const dias = c.fechaFinMembresia ? Math.max(0, Math.ceil((new Date(c.fechaFinMembresia + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000)) : 0;
+  membresia.push('<div class="mb-0"><span class="text-muted">Días restantes:</span> ' + (c.fechaFinMembresia ? dias : '-') + '</div>');
+  const detalleMembresia = document.getElementById('clienteDetalleMembresia');
+  if (detalleMembresia) detalleMembresia.innerHTML = membresia.join('');
 
   new bootstrap.Modal(document.getElementById('clienteDetalleModal')).show();
 }
@@ -298,17 +302,56 @@ function prepararFotoCliente(e) {
 async function eliminarFotoCliente() {
   if (!state.editingId) {
     state.fotoSeleccionada = null;
-    document.getElementById('clienteFotoInput').value = '';
     renderFotoCliente(null, false);
     return;
   }
   try {
     await API.del('/clientes/' + state.editingId + '/foto');
     state.fotoSeleccionada = null;
-    document.getElementById('clienteFotoInput').value = '';
     renderFotoCliente(null, false);
     Utils.showToast('Foto eliminada', 'success');
   } catch (err) { Utils.showToast(err.message, 'error'); }
+}
+
+async function abrirCamaraCliente() {
+  const video = document.getElementById('clienteCamaraVideo');
+  const mensaje = document.getElementById('clienteCamaraMensaje');
+  if (!navigator.mediaDevices?.getUserMedia) {
+    Utils.showToast('La cámara no está disponible en este navegador', 'warning');
+    return;
+  }
+  try {
+    state.camaraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    video.srcObject = state.camaraStream;
+    if (mensaje) mensaje.textContent = 'Centra al cliente y presiona Capturar.';
+    new bootstrap.Modal(document.getElementById('clienteCamaraModal')).show();
+  } catch (_) {
+    Utils.showToast('No se pudo abrir la cámara. Revisa los permisos del navegador.', 'error');
+  }
+}
+
+function capturarFotoCliente() {
+  const video = document.getElementById('clienteCamaraVideo');
+  if (!video?.videoWidth) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    state.fotoSeleccionada = new File([blob], 'foto_cliente_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+    renderFotoCliente(URL.createObjectURL(blob), Boolean(state.editingId));
+    bootstrap.Modal.getInstance(document.getElementById('clienteCamaraModal'))?.hide();
+  }, 'image/jpeg', 0.9);
+}
+
+function cerrarCamaraCliente() {
+  if (state.camaraStream) {
+    state.camaraStream.getTracks().forEach(track => track.stop());
+    state.camaraStream = null;
+  }
+  const video = document.getElementById('clienteCamaraVideo');
+  if (video) video.srcObject = null;
 }
 
 function combinarTelefonoCliente() {
